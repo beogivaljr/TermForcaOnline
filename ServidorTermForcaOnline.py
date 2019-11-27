@@ -7,7 +7,13 @@ import os
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 8080        # Port to listen on (non-privileged ports are > 1023)
 
-def thread_conn(conn, addr):
+playersIpList = [] ## Lista com os jogadores ativos
+
+def setMasterPlayer(ip):
+    playersIpList.append(ip)
+
+
+def thread_conn(conn, addr): ## Thread paralela (Uma ativa por usuario)
     logging.info("Thread: Connected by:" + repr(addr))
     with conn:
         while True:
@@ -20,7 +26,7 @@ def thread_conn(conn, addr):
             
             try:
                 
-                time.sleep(10) ## Simular arquivo grande
+                time.sleep(100) ## Simular arquivo grande
                 
                 sizeInt = os.stat(pathStr).st_size
                 sizeStr = str(sizeInt)
@@ -48,13 +54,20 @@ if __name__ == "__main__":
             s.listen()
             while True:
                 logging.info("Main: Waiting for new connection...")
-                conn, addr = s.accept() #Trava o programa esperando conexao
-                x = threading.Thread(target=thread_conn, args=(conn, addr))
-                x.start()
+                conn, addr = s.accept() # Trava o programa esperando conexao
+                ip = addr[0]
+                if ip in playersIpList: # Ignora ips ja conectados
+                    print("Player already connected")
+                else:
+                    x = threading.Thread(target=thread_conn, args=(conn, addr))
+                    x.start()
+                    if len(playersIpList) == 0:
+                        setMasterPlayer(ip)
+                    else:
+                        print("Guessing players connected")
+                print(playersIpList)
         except:
             logging.info("Main: Crash")
 
     logging.info("Main: Socket closed")
-
-
     logging.info("Main: All done")

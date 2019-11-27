@@ -5,15 +5,18 @@ import socket
 PORT = 8080        # The port used by the server
 
 print("Digite o Nome ou IP do host:")
-host = input()
+#host = input()
+host = '127.0.0.1'
 hostIp = socket.gethostbyname(host)
 
 print("Digite a porta:")
-portStr = input()
+#portStr = input()
+portStr = 8080
 port = int(portStr)
 
 print("Digite o caminho do arquivo:")
-filePath = input()
+#filePath = input()
+filePath = ""
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((hostIp, port))
