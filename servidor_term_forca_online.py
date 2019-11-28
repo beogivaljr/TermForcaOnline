@@ -1,24 +1,10 @@
 #!/usr/bin/python3
 
+from shared_term_forca_online import *
 import logging
 import threading
 import time
 import socket
-
-# Comandos API
-API_USER_INPUT = 'USER_INPUT '
-API_GET = 'GET '
-API_POST = 'POST '
-API_TOUCH = 'TOUCH '
-API_FIRST = 'FIRST '
-API_SUCCESS = ''
-API_ERROR_500 = 'HTTP/1.1 500 ERROR\r\n\r\n'
-API_END = 'HTTP/1.1\r\n\r\n'
-
-# Constantes globais
-HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
-PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
-ENCODING = 'utf-8'
 
 # Mensagens
 TITLE_MAIN = 'Main:'
@@ -133,15 +119,15 @@ def treat_first(player):
                 r = conn.recv(1024)  # Aguarda a receber a requisição
 
                 # Após a resposta bem sucedida
-                response = translate_first_players(r.decode(ENCODING))  # Traduz a requisição e gera a resposta
-                conn.sendall(bytes(response, ENCODING))  # Envia a resposta
+                response = translate_first_players(decode(r))  # Traduz a requisição e gera a resposta
+                conn.sendall(encode(response))  # Envia a resposta
         except BrokenPipeError as e:
             log(e)
         except ConnectionResetError as e:
             log(e)
         except Exception as e:
             logging.exception(e)
-            conn.sendall(bytes(API_ERROR_500, ENCODING))
+            conn.sendall(encode(API_ERROR_500))
         finally:
             disconnect(player)
 
