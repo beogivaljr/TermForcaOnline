@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from .ConstantesTermForcaOnline import GlobalConstants as C
+from shared_term_forca_online import *
 import logging
 import threading
 import time
@@ -96,14 +96,14 @@ def treat_guessing(player):
 # Traduz os comandos recebidos pelo cliente através da requisição
 # Devolve a resposta adequada para ser enviada ao cliente
 def translate_first_players(request):
-    if C.API_USER_INPUT in request:  # Deve ignorar qualquer outro tipo de comando case tenha entrada do usuário
+    if API_USER_INPUT in request:  # Deve ignorar qualquer outro tipo de comando case tenha entrada do usuário
         print(request)
         return request
-    elif C.API_POST in request:
-        if C.API_TOUCH in request:
-            return f'{C.API_POST}{C.API_FIRST}{C.API_END}'  # Comando para avisar o cliente que este jogador foi o primeiro
-        elif C.API_GET in request:
-            return C.API_GET
+    elif API_POST in request:
+        if API_TOUCH in request:
+            return f'{API_POST}{API_FIRST}{API_END}'  # Comando para avisar o cliente que este jogador foi o primeiro
+        elif API_GET in request:
+            return API_GET
     return 'response'
 
 
@@ -119,15 +119,15 @@ def treat_first(player):
                 r = conn.recv(1024)  # Aguarda a receber a requisição
 
                 # Após a resposta bem sucedida
-                response = translate_first_players(r.decode(C.ENCODING))  # Traduz a requisição e gera a resposta
-                conn.sendall(bytes(response, C.ENCODING))  # Envia a resposta
+                response = translate_first_players(decode(r))  # Traduz a requisição e gera a resposta
+                conn.sendall(encode(response))  # Envia a resposta
         except BrokenPipeError as e:
             log(e)
         except ConnectionResetError as e:
             log(e)
         except Exception as e:
             logging.exception(e)
-            conn.sendall(bytes(C.API_ERROR_500, C.ENCODING))
+            conn.sendall(encode(API_ERROR_500))
         finally:
             disconnect(player)
 
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     main_thread_id = threading.current_thread().ident  # Captura o id da main thread para futura identificação
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind((C.HOST, C.PORT))
+            s.bind((HOST, PORT))
             s.listen()
             while True:
                 log(MSG_WAITING_NEW_PLAYERS)
