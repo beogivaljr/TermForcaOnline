@@ -1,24 +1,10 @@
 #!/usr/bin/python3
 
+from .ConstantesTermForcaOnline import GlobalConstants as C
 import logging
 import threading
 import time
 import socket
-
-# Comandos API
-API_USER_INPUT = 'USER_INPUT '
-API_GET = 'GET '
-API_POST = 'POST '
-API_TOUCH = 'TOUCH '
-API_FIRST = 'FIRST '
-API_SUCCESS = ''
-API_ERROR_500 = 'HTTP/1.1 500 ERROR\r\n\r\n'
-API_END = 'HTTP/1.1\r\n\r\n'
-
-# Constantes globais
-HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
-PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
-ENCODING = 'utf-8'
 
 # Mensagens
 TITLE_MAIN = 'Main:'
@@ -110,14 +96,14 @@ def treat_guessing(player):
 # Traduz os comandos recebidos pelo cliente através da requisição
 # Devolve a resposta adequada para ser enviada ao cliente
 def translate_first_players(request):
-    if API_USER_INPUT in request:  # Deve ignorar qualquer outro tipo de comando case tenha entrada do usuário
+    if C.API_USER_INPUT in request:  # Deve ignorar qualquer outro tipo de comando case tenha entrada do usuário
         print(request)
         return request
-    elif API_POST in request:
-        if API_TOUCH in request:
-            return f'{API_POST}{API_FIRST}{API_END}'  # Comando para avisar o cliente que este jogador foi o primeiro
-        elif API_GET in request:
-            return API_GET
+    elif C.API_POST in request:
+        if C.API_TOUCH in request:
+            return f'{C.API_POST}{C.API_FIRST}{C.API_END}'  # Comando para avisar o cliente que este jogador foi o primeiro
+        elif C.API_GET in request:
+            return C.API_GET
     return 'response'
 
 
@@ -133,15 +119,15 @@ def treat_first(player):
                 r = conn.recv(1024)  # Aguarda a receber a requisição
 
                 # Após a resposta bem sucedida
-                response = translate_first_players(r.decode(ENCODING))  # Traduz a requisição e gera a resposta
-                conn.sendall(bytes(response, ENCODING))  # Envia a resposta
+                response = translate_first_players(r.decode(C.ENCODING))  # Traduz a requisição e gera a resposta
+                conn.sendall(bytes(response, C.ENCODING))  # Envia a resposta
         except BrokenPipeError as e:
             log(e)
         except ConnectionResetError as e:
             log(e)
         except Exception as e:
             logging.exception(e)
-            conn.sendall(bytes(API_ERROR_500, ENCODING))
+            conn.sendall(bytes(C.API_ERROR_500, C.ENCODING))
         finally:
             disconnect(player)
 
@@ -151,7 +137,7 @@ if __name__ == '__main__':
     main_thread_id = threading.current_thread().ident  # Captura o id da main thread para futura identificação
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind((HOST, PORT))
+            s.bind((C.HOST, C.PORT))
             s.listen()
             while True:
                 log(MSG_WAITING_NEW_PLAYERS)
