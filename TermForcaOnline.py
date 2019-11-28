@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 
 import socket
+import time
 
 PORT = 8080        # The port used by the server
+ENCODING = 'utf-8'
+API_USER_INPUT = 'USER_INPUT '
 
 print("Digite o Nome ou IP do host:")
 #host = input()
@@ -20,18 +23,9 @@ filePath = ""
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((hostIp, port))
-    s.sendall(bytes('GET ' + filePath + ' HTTP/1.1\r\n\r\n','utf-8'))
+    s.sendall(bytes(f'POST TOUCH ', 'utf-8'))
     data = s.recv(1024)
-    file = s.recv(1025)
-
-print()
-print("Message:")
-print("----------------------------------------------------")
-print(repr(data))
-print("----------------------------------------------------")
-print()
-print("File:")
-print("----------------------------------------------------")
-print(file)
-print("----------------------------------------------------")
-s.close()
+    command = data.decode(ENCODING)
+    if 'FIRST' in command:
+        print('Escolha a palavra:')
+        s.sendall(bytes(f'{API_USER_INPUT}{input()}', 'utf-8'))
