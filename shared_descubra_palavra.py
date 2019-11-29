@@ -23,6 +23,9 @@ API_TOUCH = 'TOUCH '
 # Usada para marcar a comunicação com o primeiro jogador
 API_FIRST = 'FIRST '
 
+# Usada para indicar o inicio do jogo
+API_START = 'START '
+
 # Mensagem padrão de sucesso
 API_SUCCESS = 'HTTP/1.1 200 OK\r\n'
 
