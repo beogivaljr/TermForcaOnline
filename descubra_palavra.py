@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from shared_term_forca_online import *
+from shared_descubra_palavra import *
 import socket
 import time
 
