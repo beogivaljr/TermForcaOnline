@@ -25,6 +25,9 @@ API_TOUCH = 'TOUCH '
 # Usada para marcar a comunicação com o primeiro jogador
 API_FIRST = 'FIRST '
 
+# Usada para indicar uma mensagem direta
+API_DIRECT_MSG = 'DIRECT_MSG '
+
 # Usada para indicar o inicio do jogo
 API_START = 'START '
 
@@ -42,6 +45,9 @@ API_ERROR_500 = 'HTTP/1.1 500 ERROR\r\n'
 
 # Final padrão do cabeçalho
 API_END = 'HTTP/1.1\r\n'
+
+# Usado para verificar se o jogo acabou
+CLT_MSG_GAME_OVER = 'Fim de Jogo!'
 
 # Exemplos de requisições
 # 'POST TOUCH HTTP/1.1\r\n'

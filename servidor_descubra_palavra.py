@@ -36,6 +36,11 @@ MSG_GAME_STARTED = 'Jogo iniciado'
 
 # Mensagens para o cliente
 CLT_MSG_TOO_LONG_WORD = 'Palavra muito longa, por favor escolha uma palavra mais curta.'
+CLT_MSG_CHOSEN_WORD = 'A palavra escolhida foi:'
+CLT_MSG_FIRST_PLAYER_WON = 'Muito bem jogador 1, você ganhou!'
+CLT_MSG_FIRST_PLAYER_LOST = 'Sinto muito jogador 1, você perdeu.'
+CLT_MSG_OTHER_WINNING_PLAYERS = 'Os jogadores que acertaram foram:'
+CLT_MSG_NO_WINNING_PLAYERS = 'Ninguém acertou.'
 
 # Constantes do servidor
 TOTAL_GAME_TIME = 9  # Tempo total de jogo em segundos
@@ -181,10 +186,10 @@ def handle_first(player: Player):
 
 
 # Envia o 'status_description' do jogo para todas as conexões ativas
-def send_all_players(game_status: str):
+def send_all_players(message: str):
     for player in connected_players:
         try:
-            player.connection.sendall(encode(game_status))  # Envia status do jogo
+            player.connection.sendall(encode(f'{API_POST}{API_DIRECT_MSG}{API_END}{message}'))
         finally:  # Ignora quaisquer erros
             pass
 
@@ -232,12 +237,47 @@ def run_game_timer():
             game_status_needs_update = True
 
 
-# TODO: Função que finaliza o jogo
+# Checa se o primeiro jogador ganhou
+# Devolve mensagem dizendo se sim ou se não
+def did_first_player_won():
+    total_hits = 0
+
+    for player in connected_players:
+        if player.won:
+            total_hits += 1
+
+    if 0 < total_hits < total_connected_players():
+        return CLT_MSG_FIRST_PLAYER_WON
+    else:
+        return CLT_MSG_FIRST_PLAYER_LOST
+
+
+# Checa os jogadores adivinhadores ganhadores
+# Devolve uma mensagem parabenizando os ganhadores
+def congratulate_other_wining_players():
+    congrats_msg = CLT_MSG_OTHER_WINNING_PLAYERS
+
+    for player in connected_players:
+        if player.won:
+            congrats_msg += f'{player.nickname}\r\n'
+
+    if congrats_msg is CLT_MSG_OTHER_WINNING_PLAYERS:
+        return CLT_MSG_NO_WINNING_PLAYERS
+    else:
+        return congrats_msg
+
+
 # Finaliza o jogo
 # Gera e envia o ultimo status do jogo, contendo ganhadores e aviso de fim de jogo
 # Disconecta todos os jogadores
 def finish_game():
-    last_status_description = 'Fim de jogo'
+    last_status_description = f'\r\n##########\r\n'
+    last_status_description += f'{CLT_MSG_GAME_OVER}\r\n'
+    last_status_description += f'{CLT_MSG_CHOSEN_WORD} {game_word}\r\n'
+    last_status_description += f'{did_first_player_won()}\r\n'
+    last_status_description += f'{congratulate_other_wining_players()}\r\n'
+    last_status_description += f'##########\r\n'
+
     send_all_players(last_status_description)
 
     global current_game_time
