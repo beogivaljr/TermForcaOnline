@@ -152,6 +152,7 @@ def translate_other_players(request: str, player: Player):
 # Temos uma thread dessas por usuário
 def handle_guessing(player: Player):
     player.thread_id = threading.current_thread().ident  # Captura o id da thread do jogador
+    send = player.connection.sendall
     try:
         while True:
             request = decode(player.connection.recv(MAX_PACK_LENGTH))  # Aguarda a receber a requisição
@@ -160,19 +161,19 @@ def handle_guessing(player: Player):
             if API_END in request:  # Checa se a requisição tem fim no cabeçalho
                 response = translate_other_players(request, player)  # Traduz a requisição e gera uma resposta
                 if API_TOUCH in response:
-                    player.connection.sendall(encode(response))
+                    send(encode(response))
                     while current_game_time == TOTAL_GAME_TIME:
                         pass  # Fica preso esperando o jogo começar para voltar a receber do usuário
                 elif API_WON in response:
-                    player.connection.sendall(encode(response))
+                    send(encode(response))
                     break  # Encerra essa thread e para de receber deste cliente
                 elif API_USER_ERROR in response:
-                    player.connection.sendall(encode(response))
+                    send(encode(response))
                 else:
                     pass  # Não evia nada, pois o status já está sendo enviado por outra thread
             else:
                 # Envia 400 e encerra a conexão
-                player.connection.sendall(encode(API_BAD_REQUEST))
+                send(encode(API_BAD_REQUEST))
                 disconnect(player)
                 break
 
@@ -184,7 +185,7 @@ def handle_guessing(player: Player):
         disconnect(player)
     except Exception as e:
         logging.exception(e)
-        player.connection.sendall(encode(API_ERROR_500))
+        send(encode(API_ERROR_500))
         disconnect(player)
 
 
@@ -255,11 +256,12 @@ def handle_first(player: Player):
 # Envia o 'status_description' do jogo para todas as conexões ativas
 def send_all_players(message: str, is_last: bool = False):
     for player in connected_players:
+        send = player.connection.sendall
         try:
             if is_last:
-                player.connection.sendall(encode(f'{API_POST}{API_GAME_OVER}{API_DIRECT_MSG}{API_END}{message}'))
+                send(encode(f'{API_POST}{API_GAME_OVER}{API_DIRECT_MSG}{API_END}{message}'))
             else:
-                player.connection.sendall(encode(f'{API_POST}{API_DIRECT_MSG}{API_END}{message}'))
+                send(encode(f'{API_POST}{API_DIRECT_MSG}{API_END}{message}'))
         except BrokenPipeError as e:
             log(f'{player.nickname} {e}')
             disconnect(player)
@@ -268,7 +270,7 @@ def send_all_players(message: str, is_last: bool = False):
             disconnect(player)
         except Exception as e:
             logging.exception(e)
-            player.connection.sendall(encode(API_ERROR_500))
+            send(encode(API_ERROR_500))
             disconnect(player)
 
 
