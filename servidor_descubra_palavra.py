@@ -17,7 +17,7 @@ class Player:
     def get_ip(self):
         return self.connection[0]
 
-    thread_id: int
+    thread_id = 0
     nickname = 'Sem Apelido'
     words_guessed: [str] = []
     won = False
@@ -33,18 +33,23 @@ MSG_TOTAL_CONNECTED_PLAYERS = 'Total de jogadores ->'
 MSG_DISCONNECTED = 'Desconectado.'
 MSG_SERVER_CLOSED = 'Servidor encerrado.'
 MSG_GAME_STARTED = 'Jogo iniciado'
+MSG_CHOSEN_WORD = 'A palavra escolhida foi'
+MSG_PLAYER_GUESSED = 'Chutou'
 
 # Mensagens para o cliente
+CLT_MSG_BAR = '##########'
 CLT_MSG_TOO_LONG_WORD = 'Palavra muito longa, por favor escolha uma palavra mais curta.'
 CLT_MSG_CHOSEN_WORD = 'A palavra escolhida foi:'
-CLT_MSG_FIRST_PLAYER_WON = 'Muito bem jogador 1, você ganhou!'
-CLT_MSG_FIRST_PLAYER_LOST = 'Sinto muito jogador 1, você perdeu.'
+CLT_MSG_FIRST_PLAYER_WON = 'O jogador quem escolheu a palavra ganhou!'
+CLT_MSG_FIRST_PLAYER_LOST = 'O jogador quem escolheu a palavra perdeu.'
 CLT_MSG_OTHER_WINNING_PLAYERS = 'Os jogadores que acertaram foram:'
 CLT_MSG_NO_WINNING_PLAYERS = 'Ninguém acertou.'
+CLT_MSG_GAME_OVER = 'Fim de Jogo!'
 
 # Constantes do servidor
-TOTAL_GAME_TIME = 9  # Tempo total de jogo em segundos
+TOTAL_GAME_TIME = 5  # Tempo total de jogo em segundos
 STOP_RECEIVING = 'STOP_RECEIVING '
+WRONG_GUESS = 'WRONG_GUESS '
 
 # Variáveis globais do servidor
 connected_players: [Player] = []  # Lista com os jogadores ativos
@@ -111,16 +116,75 @@ def disconnect(player: Player):
         log_total_players()  # Vai aparecer com o id da thread, pois o jogador já não estará mais conectado
 
 
-# TODO: Fluxo dos demais jogadores (jogadores adivinhadores)
+# Recebe a requisição (str) dos outros jogadores
+# Traduz os comandos recebidos pelo cliente através da requisição
+# Devolve a resposta adequada para ser enviada ao cliente
+def translate_other_players(request: str, player: Player):
+    global game_status_needs_update
+    if f'{API_POST}{API_TOUCH}' in request:
+        nickname = get_content_from(request)
+        if len(nickname) <= MAX_INPUT_LENGTH:
+            player.nickname = nickname
+            log(MSG_CONNECTED)
+            game_status_needs_update = True  # Atualiza o jogo
+            return f'{API_POST}{API_TOUCH}{API_SUCCESS}'
+        else:
+            return f'{API_POST}{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
+
+    elif f'{API_POST}{API_USER_INPUT}' in request:
+        guessed_word = get_content_from(request)  # Nova string contendo a entrada do usuário
+        if len(guessed_word) <= MAX_INPUT_LENGTH:
+            log(f'{MSG_PLAYER_GUESSED} {guessed_word}')
+            if guessed_word.lower() == game_word.lower():
+                player.won = True
+                game_status_needs_update = True  # Atualiza o jogo
+                return f'{API_POST}{API_WON}{API_END}'
+            else:
+                player.words_guessed.append(guessed_word)
+                game_status_needs_update = True  # Atualiza o jogo
+                return WRONG_GUESS
+
+    else:
+        return f'{API_POST}{API_FIRST}{API_BAD_REQUEST}'
+
+
 # Thread paralela que trata os usuários que vão tentar adivinhar a palavra proposta pelo primeiro jogador
 # Temos uma thread dessas por usuário
 def handle_guessing(player: Player):
     player.thread_id = threading.current_thread().ident  # Captura o id da thread do jogador
-    log(MSG_CONNECTED)
     try:
-        print('TODO GUEST')
-        time.sleep(20)
-    finally:
+        while True:
+            request = decode(player.connection.recv(MAX_PACK_LENGTH))  # Aguarda a receber a requisição
+
+            # Após a resposta bem sucedida
+            if API_END in request:  # Checa se a requisição tem fim no cabeçalho
+                response = translate_other_players(request, player)  # Traduz a requisição e gera uma resposta
+                if API_TOUCH in response:
+                    player.connection.sendall(encode(response))
+                    while current_game_time == TOTAL_GAME_TIME:
+                        pass  # Fica preso esperando o jogo começar para voltar a receber do usuário
+                elif API_WON in response:
+                    player.connection.sendall(encode(response))
+                    break  # Encerra essa thread e para de receber deste cliente
+                elif API_USER_ERROR in response:
+                    player.connection.sendall(encode(response))
+                else:
+                    pass  # Não evia nada, pois o status já está sendo enviado por outra thread
+            else:
+                # Envia 400 e encerra a conexão
+                player.connection.sendall(encode(API_BAD_REQUEST))
+                disconnect(player)
+                break
+
+    except BrokenPipeError as e:
+        log(f'{player.nickname} {e}')
+        disconnect(player)
+    except ConnectionResetError as e:
+        log(f'{player.nickname} {e}')
+        disconnect(player)
+    except Exception as e:
+        logging.exception(e)
+        player.connection.sendall(encode(API_ERROR_500))
         disconnect(player)
 
 
@@ -142,11 +206,12 @@ def translate_first_players(request: str, player: Player):
         if len(chosen_word) <= MAX_INPUT_LENGTH:
             main_game_tread = threading.Thread(target=setup_game_with, args=(chosen_word,))
             main_game_tread.start()
-            log(MSG_GAME_STARTED)
+            log(f'{MSG_CHOSEN_WORD} \'{chosen_word}\'')
             return f'{API_POST}{API_FIRST}{API_SUCCESS}'
         else:
             return f'{API_POST}{API_FIRST}{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
     elif f'{API_POST}{API_START}' in request:
+        log(MSG_GAME_STARTED)
         run_game_timer()
         return STOP_RECEIVING
 
@@ -176,9 +241,11 @@ def handle_first(player: Player):
                 break
 
     except BrokenPipeError as e:
-        log(e)
+        log(f'{player.nickname} {e}')
+        disconnect(player)
     except ConnectionResetError as e:
-        log(e)
+        log(f'{player.nickname} {e}')
+        disconnect(player)
     except Exception as e:
         logging.exception(e)
         player.connection.sendall(encode(API_ERROR_500))
@@ -186,15 +253,26 @@ def handle_first(player: Player):
 
 
 # Envia o 'status_description' do jogo para todas as conexões ativas
-def send_all_players(message: str):
+def send_all_players(message: str, is_last: bool = False):
     for player in connected_players:
         try:
-            player.connection.sendall(encode(f'{API_POST}{API_DIRECT_MSG}{API_END}{message}'))
-        finally:  # Ignora quaisquer erros
-            pass
+            if is_last:
+                player.connection.sendall(encode(f'{API_POST}{API_GAME_OVER}{API_DIRECT_MSG}{API_END}{message}'))
+            else:
+                player.connection.sendall(encode(f'{API_POST}{API_DIRECT_MSG}{API_END}{message}'))
+        except BrokenPipeError as e:
+            log(f'{player.nickname} {e}')
+            disconnect(player)
+        except ConnectionResetError as e:
+            log(f'{player.nickname} {e}')
+            disconnect(player)
+        except Exception as e:
+            logging.exception(e)
+            player.connection.sendall(encode(API_ERROR_500))
+            disconnect(player)
 
 
-# TODO: Função que monta uma str com o do status do jogo
+# TODO: Função que monta uma str com o do status do jogo (Enviar uma API_START para aviar quando o jogo começou)
 # IMPORTANTE - Só pode ser chamada por uma thread pois será fonte de conflitos
 # Função responsável por montar e enviar a descrição do status do jogo
 def update_game_status():
@@ -239,7 +317,7 @@ def run_game_timer():
 # Checa se o primeiro jogador ganhou
 # Devolve mensagem dizendo se sim ou se não
 def did_first_player_won():
-    total_hits = 0
+    total_hits = 1  # Para desconsiderar a vitória do primeiro jogador
 
     for player in connected_players:
         if player.won:
@@ -258,7 +336,7 @@ def congratulate_other_wining_players():
 
     for player in connected_players:
         if player.won:
-            congrats_msg += f'{player.nickname}\r\n'
+            congrats_msg += f'\n{player.nickname}'
 
     if congrats_msg is CLT_MSG_OTHER_WINNING_PLAYERS:
         return CLT_MSG_NO_WINNING_PLAYERS
@@ -270,20 +348,21 @@ def congratulate_other_wining_players():
 # Gera e envia o ultimo status do jogo, contendo ganhadores e aviso de fim de jogo
 # Disconecta todos os jogadores
 def finish_game():
-    last_status_description = f'\r\n##########\r\n'
-    last_status_description += f'{CLT_MSG_GAME_OVER}\r\n'
-    last_status_description += f'{CLT_MSG_CHOSEN_WORD} {game_word}\r\n'
-    last_status_description += f'{did_first_player_won()}\r\n'
-    last_status_description += f'{congratulate_other_wining_players()}\r\n'
-    last_status_description += f'##########\r\n'
+    last_status_description = f'\n{CLT_MSG_BAR}'
+    last_status_description += f'\n{CLT_MSG_GAME_OVER}'
+    last_status_description += f'\n{CLT_MSG_CHOSEN_WORD} {game_word}'
+    last_status_description += f'\n{did_first_player_won()}'
+    last_status_description += f'\n{congratulate_other_wining_players()}'
+    last_status_description += f'\n{CLT_MSG_BAR}'
 
-    send_all_players(last_status_description)
+    send_all_players(last_status_description, is_last=True)
 
     global current_game_time
     current_game_time = TOTAL_GAME_TIME  # Reseta o timer
     # Disconecta todos os jogadores
     while total_connected_players() > 0:
         disconnect(connected_players[0])
+    log(CLT_MSG_GAME_OVER)
 
 
 # Execussão principal do programa
