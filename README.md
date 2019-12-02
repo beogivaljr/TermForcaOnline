@@ -7,3 +7,5 @@ Escolha uma palavra e desafie seus amigos em sua rede local a adivinha-la.
 ## Ganhe o jogo quando:
 - Mais de uma pessoa acertar sua palavra
 - Pelo menos uma pessoa não acertar sua palavra
+
+### Requer pelo menos Python 3.7
