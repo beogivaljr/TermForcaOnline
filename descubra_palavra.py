@@ -9,8 +9,8 @@ if __name__ == '__main__':
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))
 
-        s.sendall(encode(f'{API_POST}{API_TOUCH}{API_END}'))  # Envia primeiro contato
-        command = decode(s.recv(1024))  # Recebe primeiro comando
+        s.sendall(encode(f'{API_POST}{API_TOUCH}{API_END}Beo'))  # Envia primeiro contato com o apelido
+        command = decode(s.recv(1024))  # Recebe confirmação, ou pedido de nome mais curto
 
         if 'FIRST' in command:
             # Envia 'exemplo' para ser adivinhado
