@@ -202,7 +202,6 @@ def update_game_status():
     send_all_players(status_description)
 
 
-# TODO: Função que cuida do jogo corrente
 # Thread responsável pelo jogo corrente
 def setup_game_with(word):
     global main_game_thread_id
