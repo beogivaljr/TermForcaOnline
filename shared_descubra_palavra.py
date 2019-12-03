@@ -31,6 +31,12 @@ API_DIRECT_MSG = 'DIRECT_MSG '
 # Usada para indicar o inicio do jogo
 API_START = 'START '
 
+# Usada para indicar o fim do jogo
+API_GAME_OVER = 'GAME_OVER '
+
+# Usada para indicar vitoria de jogador
+API_WON = 'WON '
+
 # Mensagem padrão de sucesso
 API_SUCCESS = 'HTTP/1.1 200 OK\r\n'
 
@@ -45,9 +51,6 @@ API_ERROR_500 = 'HTTP/1.1 500 ERROR\r\n'
 
 # Final padrão do cabeçalho
 API_END = 'HTTP/1.1\r\n'
-
-# Usado para verificar se o jogo acabou
-CLT_MSG_GAME_OVER = 'Fim de Jogo!'
 
 # Exemplos de requisições
 # 'POST TOUCH HTTP/1.1\r\n'
