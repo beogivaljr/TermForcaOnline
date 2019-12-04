@@ -5,7 +5,7 @@
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
 __ENCODING = 'utf-8'  # '__' Para representar que é para uso interno
-MAX_INPUT_LENGTH = 128
+MAX_INPUT_LENGTH = 32
 MAX_PACK_LENGTH = 256
 
 # Comandos API
@@ -27,6 +27,9 @@ API_FIRST = 'FIRST '
 
 # Usada para indicar uma mensagem direta
 API_DIRECT_MSG = 'DIRECT_MSG '
+
+# Usada para indicar que o conteudo é a palavra dica
+API_TIP = 'TIP '
 
 # Usada para indicar o inicio do jogo
 API_START = 'START '
@@ -72,5 +75,5 @@ def decode(data):
 
 # Recebe uma requisição
 # Devolve o conteúdo sem o cabeçalho
-def get_content_from(request):
-    return request.split(API_END)[1]
+def get_content_from(response):
+    return response.split(API_END)[1]
