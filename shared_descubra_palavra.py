@@ -4,7 +4,7 @@
 # Constantes globais
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
-__ENCODING = 'utf-8'  # '__' Para representar que é para uso interno
+_ENCODING = 'utf-8'  # '__' Para representar que é para uso interno
 MAX_INPUT_LENGTH = 32
 MAX_PACK_LENGTH = 256
 
@@ -64,13 +64,13 @@ API_END = 'HTTP/1.1\r\n'
 # Recebe uma string
 # Devolve ela codificada
 def encode(string):
-    return bytes(string, __ENCODING)
+    return bytes(string, _ENCODING)
 
 
 # Recebe uma string
 # Devolve ela decodificada
 def decode(data):
-    return data.decode(__ENCODING)
+    return data.decode(_ENCODING).rstrip()
 
 
 # Recebe uma requisição
