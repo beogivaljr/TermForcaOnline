@@ -19,11 +19,9 @@ API_GET = 'GET '
 # Usada para enviar dados
 API_POST = 'POST '
 
-# Usada para indicar o primeiro contato com o servidor
-API_TOUCH = 'TOUCH '
+API_NICKNAME = 'NICKNAME '
 
-# Usada para marcar a comunicação com o primeiro jogador
-API_FIRST = 'FIRST '
+API_STATUS = 'STATUS '
 
 # Usada para indicar uma mensagem direta
 API_DIRECT_MSG = 'DIRECT_MSG '
@@ -32,7 +30,7 @@ API_DIRECT_MSG = 'DIRECT_MSG '
 API_TIP = 'TIP '
 
 # Usada para indicar o inicio do jogo
-API_START = 'START '
+API_START_GAME = 'START_GAME '
 
 # Usada para indicar o fim do jogo
 API_GAME_OVER = 'GAME_OVER '
@@ -77,3 +75,11 @@ def decode(data):
 # Devolve o conteúdo sem o cabeçalho
 def get_content_from(response):
     return response.split(API_END)[1]
+
+
+# Check if the a request is valid
+def is_valid(request: str):
+    if (API_POST in request or API_GET in request) and API_END in request:
+        return True
+    else:
+        return False

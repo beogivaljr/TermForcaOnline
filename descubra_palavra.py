@@ -66,7 +66,8 @@ def play_as_first(connected_socket: socket):
             status_receiver_thread = threading.Thread(target=recurring_status_receiving, args=(connected_socket,))
             status_receiver_thread.start()
             ask('Quando estiver pronto para começar o jogo pressione \'enter\'')
-            connected_socket.sendall(encode(f'{API_POST}{API_START}{API_END}'))
+            connected_socket.sendall(encode(f'{API_POST}{API_START_GAME}{API_END}'))
+            time.sleep(100)
             break
 
         else:
@@ -77,7 +78,7 @@ def play_as_first(connected_socket: socket):
 # Recebe e printa o status do jogo constantemente
 # Fecha a conexão e encerra a thread caso não venha uma mensagem direta
 def recurring_status_receiving(receiving_socket: socket):
-    while True:
+    while False:
         try:
             server_response = decode(receiving_socket.recv(MAX_PACK_LENGTH))
             if API_END in server_response:
@@ -86,7 +87,7 @@ def recurring_status_receiving(receiving_socket: socket):
                     if API_TIP in server_response:
                         global word_tip
                         word_tip = get_content_from(server_response)
-                    if API_START in server_response:
+                    if API_START_GAME in server_response:
                         global should_wait_game_start
                         should_wait_game_start = False
 
@@ -120,20 +121,19 @@ if __name__ == '__main__':
         # Após conexão bem sucedida
         nickname = ask('Bem vindo, diga nos seu apelido:')
         while True:
-            s.sendall(encode(f'{API_POST}{API_TOUCH}{API_END}{nickname}'))  # Envia primeiro contato com o apelido
+            s.sendall(encode(f'{API_POST}{API_NICKNAME}{API_END}{nickname}'))  # Envia primeiro contato com o apelido
             response = decode(s.recv(MAX_PACK_LENGTH))  # Recebe confirmação, ou pedido de nome mais curto
             while API_DIRECT_MSG in response:  # Repete a recepção caso receba um status por engano
                 response = decode(s.recv(MAX_PACK_LENGTH))
 
             if API_SUCCESS in response:
-                if API_FIRST in response:
-                    play_as_first(s)
-                else:
-                    if API_TIP in response:
-                        word_tip = get_content_from(response)
-                        play_as_guessing(s)
-                    else:  # Se não vier dica calcelar a conexão
-                        pass
+                play_as_first(s)
+
+                # if API_TIP in response:
+                #     word_tip = get_content_from(response)
+                #     play_as_guessing(s)
+                # else:  # Se não vier dica calcelar a conexão
+                #     pass
                 break
 
             else:
