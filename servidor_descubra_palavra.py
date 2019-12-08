@@ -23,6 +23,10 @@ MSG_SERVER_INTERRUPT = 'Servidor interrompido.'
 MSG_GAME_STARTED = 'Jogo iniciado'
 MSG_CHOSEN_WORD = 'A palavra escolhida foi'
 MSG_PLAYER_GUESSED = 'Chutou'
+MSG_NO_RUNNING_GAME = 'Nenhum jogo ativo'
+MSG_TIMER_ON = 'Timer iniciado'
+MSG_TIMER_OFF = 'Timer finalizado'
+MSG_TIMER_INVALIDATED = 'Timer invalidado'
 
 # Mensagens para o cliente
 CLT_MSG_BAR = '##########'
@@ -37,32 +41,16 @@ CLT_MSG_GAME_OVER = 'Fim de Jogo!'
 
 # Modelo de jogador
 class Player:
-    def __init__(self, connected_server, connection: socket, address):
+    def __init__(self, connection: socket, address):
         self.thread_id = threading.get_ident()  # Saves the id of the thread
-        self.server = connected_server  # Server where he/she is connected
         self.connection = connection  # Socket object
         self.address = address  # (ip, port)
 
     def __enter__(self):
-        server.connected_players.append(self)
-        server.log(MSG_HANDLING)
-        server.log_total_players()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        server.connected_players.remove(self)
-        server.log(MSG_DISCONNECTED)
-        server.log_total_players()
-        try:
-            self.connection.shutdown(socket.SHUT_RDWR)
-        except BrokenPipeError:
-            pass
-        except ConnectionResetError:
-            pass
-        except OSError:
-            pass
-        except Exception as e:
-            logging.exception(e)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.send_disconnection_message()
         self.connection.close()
 
     thread_id = 0
@@ -76,9 +64,10 @@ class Player:
         return self.address[0]
 
     # Try to send and error msg to the client before disconnection
-    def send_disconnection_message(self, m):
+    def send_disconnection_message(self, m=''):
         try:  # Tries to warn the player of the internal server error
             self.connection.sendall(encode(m))
+            self.connection.shutdown(socket.SHUT_RDWR)
         except BrokenPipeError:
             return
         except ConnectionResetError:
@@ -91,11 +80,24 @@ class Player:
 
 # Modelo do Jogo em andamento
 class Game:
-    def __init__(self, master_player):
-        self.master_player = master_player
+    def __enter__(self):
 
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for player in self.connected_players:
+            player.send_disconnection_message()
+            player.connection.close()
+            self.connected_players.remove(player)
+
+    connected_players: [Player] = []  # Active players list
     chosen_word = None
     timer = 20  # Total time for each game
+    is_done = False
+
+    # Get master game
+    def get_first_player(self):
+        return self.connected_players[0]
 
     # Returns the status of the current game
     def get_status(self):
@@ -109,7 +111,6 @@ class Server:
 
     _input_prompt = None  # Any input promt being requested from the server master
     _server_receiver_thread_id = None  # Id for the receiver thread
-    connected_players: [Player] = []  # Active players list
     _running_game: Game = None
     _accepting_connections = True
 
@@ -117,13 +118,17 @@ class Server:
 
     # Timer for each game
     def run_game_timer(self):
-        if self._running_game.timer > 0:
-            self._running_game.timer -= 1
-            t = threading.Timer(1, function=self.run_game_timer)
-            t.daemon = True
-            t.start()
+        self.log(MSG_TIMER_ON)
+        while not self._running_game.is_done:
+            if self._running_game.timer > 0:
+                time.sleep(1)
+                self._running_game.timer -= 1
+            else:
+                self.log(MSG_TIMER_OFF)
+                self.game_over()
+                break
         else:
-            self.game_over()
+            self.log(MSG_TIMER_INVALIDATED)
 
     def start(self):
         # Create new thread, bind it to this thread and start it
@@ -153,9 +158,7 @@ class Server:
                         # After connection succeded
                         if self._accepting_connections:  # Check if still allowed
                             self.log(f'{address} {MSG_CONNECTED}')
-                            t = threading.Thread(target=self._handle, args=(connection, address))
-                            t.daemon = True
-                            t.start()
+                            threading.Thread(target=self._handle, args=(connection, address)).start()
                         else:
                             connection.close()
                             self.log(MSG_NOT_WAITING_NEW_PLAYERS)
@@ -165,13 +168,20 @@ class Server:
 
     # First responder to direct and handle player connections
     def _handle(self, connection, address):
-        with Player(self, connection, address) as player:
-            player.thread_id = threading.get_ident()  # Saves player's thread id
-            if len(self.connected_players) == 1:
-                self._running_game = Game(player)
-                self._handle_as_first(player)
-            else:
-                pass  # self.handle_guessing(player)
+        if not self._running_game or self._running_game.is_done:
+            with Game() as new_game:  # Will tie the game to the first player
+                with Player(connection, address) as player:
+                    new_game.connected_players.append(player)
+                    player.thread_id = threading.get_ident()  # Saves player's thread id
+                    self._running_game = new_game  # Saves new game as the servers running game
+
+                    self._handle_as_first(player)
+                self.log(MSG_DISCONNECTED)
+            self.log_total_players()
+            self._running_game.is_done = True
+            self._accepting_connections = True
+        else:
+            pass  # self.handle_guessing(player)
 
     # Handles this player as the first, which means he is going to chose the game word
     def _handle_as_first(self, player: Player):
@@ -207,7 +217,7 @@ class Server:
                 nickname = get_content_from(request)
                 if len(nickname) <= MAX_INPUT_LENGTH:
                     player.nickname = nickname  # Saves player name
-                    self.log(MSG_CONNECTED)
+                    self.log(MSG_HANDLING)
                     return f'{API_SUCCESS}{API_NICKNAME}'
                 else:
                     return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
@@ -234,23 +244,22 @@ class Server:
     def _start_game(self):
         self._send_start_warning()  # Warn players that the game has started
         self._accepting_connections = False
-        self.run_game_timer()
+        threading.Thread(target=self.run_game_timer).start()
         self.log(MSG_GAME_STARTED)
 
     # Finishes the game
     def game_over(self):
-        self.log(CLT_MSG_GAME_OVER)
-        for player in self.connected_players:
+        for player in self._running_game.connected_players:
             player.send_disconnection_message(API_GAME_OVER)
             player.connection.close()
-        self._accepting_connections = True
+        self.log(CLT_MSG_GAME_OVER)
 
     # MARK - Helper methods
 
     # Attempts to send all players a command
     def _send_start_warning(self):
-        for player in self.connected_players:
-            if player is not self._running_game.master_player:
+        for player in self._running_game.connected_players:
+            if player is not self._running_game.get_first_player():
                 try:
                     player.connection.sendall(encode(f'{API_POST}{API_START_GAME}{API_END}'))
                 except BrokenPipeError:
@@ -283,7 +292,7 @@ class Server:
         elif self._server_receiver_thread_id and thread_id == self._server_receiver_thread_id:
             return TITLE_SERVER_RECEIVER
         else:
-            for player in self.connected_players:
+            for player in self._running_game.connected_players:
                 if player.thread_id == thread_id:
                     if player.nickname:
                         return f'{thread_name} ({player.nickname}):'
@@ -295,8 +304,10 @@ class Server:
 
     # Prints total connected players
     def log_total_players(self):
-        self.log(f'{MSG_TOTAL_CONNECTED_PLAYERS} {len(self.connected_players)}')
-
+        if self._running_game:
+            self.log(f'{MSG_TOTAL_CONNECTED_PLAYERS} {len(self._running_game.connected_players)}')
+        else:
+            self.log(MSG_NO_RUNNING_GAME)
 
 # # Thread paralela que trata os usuários que vão tentar adivinhar a palavra proposta pelo primeiro jogador
 # # Temos uma thread dessas por usuário
