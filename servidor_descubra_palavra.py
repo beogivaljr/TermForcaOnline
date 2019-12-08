@@ -15,7 +15,7 @@ MSG_SERVER_STARTED = 'Servidor iniciado'
 MSG_PRESS_TO_STOP = 'Pressione ENTER para encerrar o servidor: '
 MSG_WAITING_NEW_PLAYERS = 'Esperando novos jogadores...'
 MSG_NOT_WAITING_NEW_PLAYERS = 'Bloqueando conexões'
-MSG_CONNECTED = 'conectado'
+MSG_CONNECTED = 'Conectado'
 MSG_HANDLING = 'Tratando'
 MSG_TOTAL_CONNECTED_PLAYERS = 'Total de jogadores na fila ->'
 MSG_DISCONNECTED = 'Desconectado.'
@@ -91,20 +91,11 @@ class Player:
 
 # Modelo do Jogo em andamento
 class Game:
-    def __init__(self, on_server, chosen_word, master_player):
-        self.server = on_server
-        self.chosen_word = chosen_word
+    def __init__(self, master_player):
         self.master_player = master_player
 
-    timer = 20  # Tempo total de jogo em segundos
-
-    # Game timer
-    def run_game_timer(self):
-        if self.timer > 0:
-            self.timer -= 1
-            threading.Timer(1, function=self.run_game_timer).start()
-        else:
-            server.game_over()
+    chosen_word = None
+    timer = 20  # Total time for each game
 
     # Returns the status of the current game
     def get_status(self):
@@ -123,6 +114,16 @@ class Server:
     _accepting_connections = True
 
     # MARK - Flow methods
+
+    # Timer for each game
+    def run_game_timer(self):
+        if self._running_game.timer > 0:
+            self._running_game.timer -= 1
+            t = threading.Timer(1, function=self.run_game_timer)
+            t.daemon = True
+            t.start()
+        else:
+            self.game_over()
 
     def start(self):
         # Create new thread, bind it to this thread and start it
@@ -167,6 +168,7 @@ class Server:
         with Player(self, connection, address) as player:
             player.thread_id = threading.get_ident()  # Saves player's thread id
             if len(self.connected_players) == 1:
+                self._running_game = Game(player)
                 self._handle_as_first(player)
             else:
                 pass  # self.handle_guessing(player)
@@ -213,7 +215,7 @@ class Server:
             elif API_USER_INPUT in request:
                 chosen_word = get_content_from(request)
                 if len(chosen_word) <= MAX_INPUT_LENGTH:
-                    self._running_game = Game(self, chosen_word, player)
+                    self._running_game.chosen_word = chosen_word
                     self.log(f'{MSG_CHOSEN_WORD} \'{chosen_word}\'')
                     return API_SUCCESS
                 else:
@@ -232,7 +234,7 @@ class Server:
     def _start_game(self):
         self._send_start_warning()  # Warn players that the game has started
         self._accepting_connections = False
-        self._running_game.run_game_timer()
+        self.run_game_timer()
         self.log(MSG_GAME_STARTED)
 
     # Finishes the game
