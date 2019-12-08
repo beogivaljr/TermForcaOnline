@@ -125,7 +125,7 @@ class Server:
                 self._running_game.timer -= 1
             else:
                 self.log(MSG_TIMER_OFF)
-                self.game_over()
+                self._game_over()
                 break
         else:
             self.log(MSG_TIMER_INVALIDATED)
@@ -248,7 +248,7 @@ class Server:
         self.log(MSG_GAME_STARTED)
 
     # Finishes the game
-    def game_over(self):
+    def _game_over(self):
         for player in self._running_game.connected_players:
             player.send_disconnection_message(API_GAME_OVER)
             player.connection.close()
