@@ -3,7 +3,7 @@
 
 # Global constants
 HOST = ''  # Standard loopback interface address (localhost)
-PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
+PORT = 9000  # Port to listen on (non-privileged ports are > 1023)
 _ENCODING = 'utf-8'
 MAX_INPUT_LENGTH = 32
 MAX_PACK_LENGTH = 256

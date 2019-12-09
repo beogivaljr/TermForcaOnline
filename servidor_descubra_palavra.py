@@ -256,6 +256,7 @@ class Server:
                 with Player(connection, address) as player:
                     new_game.connected_players.append(player)
                     self._running_game = new_game  # Saves new game as the servers running game
+                    self.log(MSG_HANDLING)
                     self._handle_as_first(player)
 
                     while len(new_game.connected_players) > 1:
@@ -267,6 +268,7 @@ class Server:
             self._accepting_connections = True
         else:
             with Player(connection, address) as player:
+                self.log(MSG_HANDLING)
                 self._running_game.connected_players.append(player)
                 self._handle_guessing(player)
 
@@ -346,7 +348,7 @@ class Server:
                 chosen_word = get_request_content(request)
                 if len(chosen_word) <= MAX_INPUT_LENGTH:
                     self._running_game.chosen_word = chosen_word
-                    self.log(f'{MSG_CHOSEN_WORD} \'{chosen_word}\'')
+                    # self.log(f'{MSG_CHOSEN_WORD} \'{chosen_word}\'')
                     return API_SUCCESS
                 else:
                     return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
