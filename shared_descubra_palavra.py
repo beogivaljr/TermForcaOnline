@@ -5,7 +5,7 @@
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
 _ENCODING = 'utf-8'
-MAX_INPUT_LENGTH = 5
+MAX_INPUT_LENGTH = 32
 MAX_PACK_LENGTH = 256
 
 # API tags
@@ -16,7 +16,6 @@ API_USER_INPUT = 'USER_INPUT '
 API_NICKNAME = 'NICKNAME '
 API_STATUS = 'STATUS '
 API_FIRST = 'FIRST '
-API_TIP = 'TIP '
 API_START_GAME = 'START_GAME '
 API_GAME_OVER = 'GAME_OVER '
 API_WON = 'WON '

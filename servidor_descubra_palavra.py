@@ -30,7 +30,7 @@ MSG_TIMER_OFF = 'Timer finalizado'
 MSG_TIMER_INVALIDATED = 'Timer invalidado'
 
 # Mensagens para o cliente
-CLT_MSG_BAR = '##########'
+CLT_MSG_BAR = '####################'
 CLT_MSG_TOO_LONG_WORD = 'Palavra muito longa, por favor escolha uma palavra mais curta.'
 CLT_MSG_CHOSEN_WORD = 'A palavra escolhida foi:'
 CLT_MSG_FIRST_PLAYER_WON = 'O jogador quem escolheu a palavra ganhou!'
@@ -39,6 +39,7 @@ CLT_MSG_OTHER_WINNING_PLAYERS = 'Os jogadores que acertaram foram:'
 CLT_MSG_NO_WINNING_PLAYERS = 'Ninguém acertou.'
 CLT_MSG_GAME_OVER = 'Fim de Jogo!'
 CLT_MSG_GAME_TITLE = 'Tempo restante: '
+CLT_MSG_TIP = 'Sua dica é '
 
 
 # Modelo de jogador
@@ -48,17 +49,17 @@ class Player:
         self.connection = connection  # Socket object
         self.address = address  # (ip, port)
 
+        self.nickname = None
+        self.words_guessed: [str] = []
+        self.word_tip = None
+        self.won = False
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.send_disconnection_message()
         self.connection.close()
-
-    thread_id = 0
-    nickname = None
-    words_guessed: [str] = []
-    won = False
 
     # MARK - Helper methods
 
@@ -82,6 +83,12 @@ class Player:
 
 # Modelo do Jogo em andamento
 class Game:
+    def __init__(self):
+        self.connected_players: [Player] = []  # Active players list
+        self.chosen_word = None
+        self.timer = 20  # Total time for each game
+        self.is_done = False
+
     def __enter__(self):
         return self
 
@@ -91,30 +98,26 @@ class Game:
             player.connection.close()
             self.connected_players.remove(player)
 
-    connected_players: [Player] = []  # Active players list
-    chosen_word = None
-    timer = 20  # Total time for each game
-    is_done = False
-
     # Get master game
     def get_first_player(self):
         return self.connected_players[0]
 
     # Returns the status of the current game
-    def get_status(self):
+    def get_status(self, with_tip=None):
         if self.is_done:
             return self._get_last_status()
         else:
             status_description = f'\n{CLT_MSG_BAR}'
-            status_description += f'\n{CLT_MSG_GAME_TITLE} {self.timer}'
+            status_description += f'\n{CLT_MSG_GAME_TITLE}{self.timer}s'
+            if with_tip:
+                status_description += f'\n{CLT_MSG_TIP}\'{with_tip}\''
             for player in self.connected_players:
                 if player is not self.get_first_player():
                     status_description += f'\n'
                     status_description += f'\n{player.nickname} chutou:'
                     for word in player.words_guessed:
                         status_description += f'\n{word}'
-            status_description += f'\n'
-            status_description += f'\n{CLT_MSG_BAR}'
+            status_description += f'\n{CLT_MSG_BAR}\n'
             return status_description
 
     # returns the last status description of the game
@@ -124,7 +127,7 @@ class Game:
         last_status_description += f'\n{CLT_MSG_CHOSEN_WORD} {self.chosen_word}'
         last_status_description += f'\n{self._did_first_player_won()}'
         last_status_description += f'\n{self._congratulate_other_wining_players()}'
-        last_status_description += f'\n{CLT_MSG_BAR}'
+        last_status_description += f'\n{CLT_MSG_BAR}\n'
         return last_status_description
 
     def _did_first_player_won(self):
@@ -152,21 +155,22 @@ class Game:
         else:
             return congrats_msg
 
-    def get_word_tip(self, amount_letters_to_keep=2):
-        word = self.chosen_word
-        vector = list(word)
-        amount_letters_to_hide = len(vector) - amount_letters_to_keep
-        L = len(vector) - 1
-        done = False
-        if amount_letters_to_hide <= 0:
-            return word
-        while not done:
-            r = random.randint(0, L)
-            vector[r] = '#'
-            if vector.count('#') >= amount_letters_to_hide or vector.count('#') == (L + 1):
-                done = True
-        secret = ''.join(vector)
-        return secret
+    def generate_all_word_tips(self, amount_letters_to_keep=2):
+        for player in self.connected_players:
+            word = self.chosen_word
+            vector = list(word)
+            amount_letters_to_hide = len(vector) - amount_letters_to_keep
+            L = len(vector) - 1
+            done = False
+            if amount_letters_to_hide <= 0:
+                return word
+            while not done:
+                r = random.randint(0, L)
+                vector[r] = '#'
+                if vector.count('#') >= amount_letters_to_hide or vector.count('#') == (L + 1):
+                    done = True
+            secret = ''.join(vector)
+            player.word_tip = secret
 
     def force_drop_all_players(self):
         for player in self.connected_players:
@@ -188,10 +192,10 @@ class Server:
     def __init__(self):
         self.thread_id = threading.get_ident()  # Saves the id of the thread of the caller of the start
 
-    _input_prompt = None  # Any input promt being requested from the server master
-    _server_receiver_thread_id = None  # Id for the receiver thread
-    _running_game: Game = None
-    _accepting_connections = True
+        self._input_prompt = None  # Any input promt being requested from the server master
+        self._server_receiver_thread_id = None  # Id for the receiver thread
+        self._running_game = None
+        self._accepting_connections = True
 
     # MARK - Flow methods
 
@@ -297,11 +301,8 @@ class Server:
 
                 # After successful request
                 if is_valid(req):  # Check if request is valid
-                    response = self._translate_other_players(req, player)  # Translate request and generate response
-                    if response:
-                        player.connection.sendall(encode(response))  # Send response
-                    else:
-                        pass  # Leave client waiting for some game to start
+                    response = self._translate_guessing_players(req, player)  # Translate request and generate response
+                    player.connection.sendall(encode(response))  # Send response
 
                 else:  # Send bad request and closes connection
                     player.send_disconnection_message(API_BAD_REQUEST)
@@ -357,7 +358,7 @@ class Server:
     # Receives all other client's request as a String
     # Process request and generates a response
     # Returns the response
-    def _translate_other_players(self, request: str, player: Player):
+    def _translate_guessing_players(self, request: str, player: Player):
         if self._running_game.is_done:
             return f'{API_GAME_OVER}{API_SUCCESS}{self._running_game.get_status()}'
         else:
@@ -367,7 +368,7 @@ class Server:
                     if len(nickname) <= MAX_INPUT_LENGTH:
                         player.nickname = nickname  # Saves player name
                         self.log(MSG_HANDLING)
-                        return None  # Wait for game to start
+                        return API_SUCCESS
                     else:
                         return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
 
@@ -378,21 +379,19 @@ class Server:
                         if guessed_word.lower() == self._running_game.chosen_word.lower() \
                                 and not self._running_game.is_done:
                             player.won = True
-                            return f'{API_WON}{API_SUCCESS}{self._running_game.get_status()}'
+                            return f'{API_WON}{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
                         else:
                             player.words_guessed.append(guessed_word)
-                            return f'{API_SUCCESS}{self._running_game.get_status()}'
+                            return f'{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
                     else:
                         return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
 
             elif API_GET in request:
-                if API_TIP in request:
-                    return f'{API_SUCCESS}{self._running_game.get_word_tip()}'
-                elif API_STATUS in request:
+                if API_STATUS in request:
                     if self._running_game.is_done:
-                        return f'{API_GAME_OVER}{API_SUCCESS}{self._running_game.get_status()}'
+                        return f'{API_GAME_OVER}{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
                     else:
-                        return f'{API_SUCCESS}{self._running_game.get_status()}'
+                        return f'{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
 
     # Timer for each game
     def run_game_timer(self):
@@ -410,6 +409,7 @@ class Server:
 
     # Starts the game
     def _start_game(self):
+        self._running_game.generate_all_word_tips()
         self._send_start_warning()  # Warn players that the game has started
         self._accepting_connections = False
         threading.Thread(target=self.run_game_timer).start()
@@ -427,7 +427,8 @@ class Server:
         for player in self._running_game.connected_players:
             if player is not self._running_game.get_first_player():
                 try:
-                    player.connection.sendall(encode(f'{API_START_GAME}{API_SUCCESS}{self._running_game.get_status()}'))
+                    status = self._running_game.get_status(player.word_tip)
+                    player.connection.sendall(encode(f'{API_START_GAME}{API_SUCCESS}{status}'))
                 except BrokenPipeError:
                     pass
                 except ConnectionResetError:
