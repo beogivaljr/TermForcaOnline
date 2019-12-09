@@ -9,3 +9,5 @@ Escolha uma palavra e desafie seus amigos em sua rede local a adivinha-la.
 - Pelo menos uma pessoa não acertar sua palavra
 
 ### Requer pelo menos Python 3.7
+
+Instruções sobre como jogar no arquivo 'Como jogar.txt'
