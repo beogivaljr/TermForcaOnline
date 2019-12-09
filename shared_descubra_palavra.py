@@ -4,8 +4,8 @@
 # Global constants
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
-__ENCODING = 'utf-8'  # '__' Para representar que é para uso interno
-MAX_INPUT_LENGTH = 32
+_ENCODING = 'utf-8'
+MAX_INPUT_LENGTH = 5
 MAX_PACK_LENGTH = 256
 
 # API tags
@@ -27,22 +27,22 @@ API_ERROR_500 = 'HTTP/1.1 500 ERROR\r\n'
 API_END = 'HTTP/1.1\r\n'
 
 
-# Recebe uma string
-# Devolve ela codificada
 def encode(string):
-    return bytes(string, __ENCODING)
+    return bytes(string, _ENCODING)
 
 
-# Recebe uma string
-# Devolve ela decodificada
 def decode(data):
-    return data.decode(__ENCODING)
+    return data.decode(_ENCODING)
 
 
-# Recebe uma requisição
-# Devolve o conteúdo sem o cabeçalho
-def get_content_from(response):
+# Returns content of requests
+def get_request_content(response):
     return response.split(API_END)[1]
+
+
+# Returns content of requests
+def get_success_content(response):
+    return response.split(API_SUCCESS)[1]
 
 
 # Check if the a request is valid

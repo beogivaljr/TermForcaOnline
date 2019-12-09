@@ -38,7 +38,7 @@ CLT_MSG_FIRST_PLAYER_LOST = 'O jogador quem escolheu a palavra perdeu.'
 CLT_MSG_OTHER_WINNING_PLAYERS = 'Os jogadores que acertaram foram:'
 CLT_MSG_NO_WINNING_PLAYERS = 'Ninguém acertou.'
 CLT_MSG_GAME_OVER = 'Fim de Jogo!'
-CLT_MSG_GAME_TITLE = 'Jogo em andamento:'
+CLT_MSG_GAME_TITLE = 'Tempo restante: '
 
 
 # Modelo de jogador
@@ -83,7 +83,6 @@ class Player:
 # Modelo do Jogo em andamento
 class Game:
     def __enter__(self):
-
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -104,8 +103,10 @@ class Game:
     # Returns the status of the current game
     def get_status(self):
         if self.is_done:
+            return self._get_last_status()
+        else:
             status_description = f'\n{CLT_MSG_BAR}'
-            status_description += f'\n{CLT_MSG_GAME_TITLE}'
+            status_description += f'\n{CLT_MSG_GAME_TITLE} {self.timer}'
             for player in self.connected_players:
                 if player is not self.get_first_player():
                     status_description += f'\n'
@@ -115,8 +116,6 @@ class Game:
             status_description += f'\n'
             status_description += f'\n{CLT_MSG_BAR}'
             return status_description
-        else:
-            return self._get_last_status()
 
     # returns the last status description of the game
     def _get_last_status(self):
@@ -169,6 +168,20 @@ class Game:
         secret = ''.join(vector)
         return secret
 
+    def force_drop_all_players(self):
+        for player in self.connected_players:
+            try:  # Tries to warn the player of the internal server error
+                player.connection.shutdown(socket.SHUT_RDWR)
+                player.connection.close()
+            except BrokenPipeError:
+                return
+            except ConnectionResetError:
+                return
+            except OSError:
+                return
+            except Exception as e:
+                logging.exception(e)
+
 
 # Modelo do Servidor
 class Server:
@@ -182,55 +195,48 @@ class Server:
 
     # MARK - Flow methods
 
-    # Timer for each game
-    def run_game_timer(self):
-        self.log(MSG_TIMER_ON)
-        while not self._running_game.is_done:
-            if self._running_game.timer > 0:
-                time.sleep(1)
-                self._running_game.timer -= 1
-            else:
-                self.log(MSG_TIMER_OFF)
-                self._game_over()
-                break
-        else:
-            self.log(MSG_TIMER_INVALIDATED)
-
     def start(self):
-        # Create new thread, bind it to this thread and start it
         self.log(MSG_SERVER_STARTED)
-        connection_receiver_thread = threading.Thread(target=self._receive_connections)
-        connection_receiver_thread.daemon = True
-        connection_receiver_thread.start()
-
-        # Waits for the server master to stop execution
         self._input_prompt = MSG_PRESS_TO_STOP
-        input(f'{self._input_prompt}\n')
+        # Create new thread
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            threading.Thread(target=self._receive_connections, args=(s,)).start()
+
+            # Waits for the server master to stop execution
+            input(f'{self._input_prompt}\n')
         self._input_prompt = None
+        if not self._running_game:
+            time.sleep(0.5)  # Waits for new game to finish starting
+        self._running_game.force_drop_all_players()
 
         self.log(MSG_SERVER_INTERRUPT)
 
-    def _receive_connections(self):
+    def _receive_connections(self, s):
         self._server_receiver_thread_id = threading.get_ident()
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind((HOST, PORT))
-                s.listen()
-                while True:
-                    if self._accepting_connections:
-                        self.log(MSG_WAITING_NEW_PLAYERS)
-                        (connection, address) = s.accept()  # Blocks until connection
+        try:
+            s.bind((HOST, PORT))
+            s.listen()
+            while self._input_prompt:
+                if self._accepting_connections:
+                    self.log(MSG_WAITING_NEW_PLAYERS)
+                    (connection, address) = s.accept()  # Blocks until connection
 
-                        # After connection succeded
-                        if self._accepting_connections:  # Check if still allowed
-                            self.log(f'{address} {MSG_CONNECTED}')
-                            threading.Thread(target=self._handle, args=(connection, address)).start()
-                        else:
-                            connection.close()
-                            self.log(MSG_NOT_WAITING_NEW_PLAYERS)
+                    # After connection succeded
+                    if self._accepting_connections:  # Check if still allowed
+                        self.log(f'{address} {MSG_CONNECTED}')
+                        threading.Thread(target=self._handle, args=(connection, address)).start()
+                    else:
+                        connection.close()
+                        self.log(MSG_NOT_WAITING_NEW_PLAYERS)
 
-            except Exception as e:
-                logging.exception(e)
+        except BrokenPipeError:
+            return
+        except ConnectionResetError:
+            return
+        except OSError:
+            return
+        except Exception as e:
+            logging.exception(e)
 
     # First responder to direct and handle player connections
     def _handle(self, connection, address):
@@ -249,6 +255,9 @@ class Server:
             with Player(connection, address) as player:
                 self._running_game.connected_players.append(player)
                 self._handle_guessing(player)
+
+                # After handling
+                self._running_game.connected_players.remove(player)
 
             self.log(MSG_DISCONNECTED)
             self.log_total_players()
@@ -314,7 +323,7 @@ class Server:
     def _translate_first_players(self, request: str, player: Player):
         if API_POST in request:
             if API_NICKNAME in request:
-                nickname = get_content_from(request)
+                nickname = get_request_content(request)
                 if len(nickname) <= MAX_INPUT_LENGTH:
                     player.nickname = nickname  # Saves player name
                     self.log(MSG_HANDLING)
@@ -323,22 +332,27 @@ class Server:
                     return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
 
             elif API_USER_INPUT in request:
-                chosen_word = get_content_from(request)
+                chosen_word = get_request_content(request)
                 if len(chosen_word) <= MAX_INPUT_LENGTH:
                     self._running_game.chosen_word = chosen_word
                     self.log(f'{MSG_CHOSEN_WORD} \'{chosen_word}\'')
                     return API_SUCCESS
                 else:
                     return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
+
             elif API_START_GAME in request:
                 self._start_game()
                 return f'{API_SUCCESS}{self._running_game.get_status()}'
+
             else:
                 return API_BAD_REQUEST
 
         elif API_GET in request:
             if API_STATUS in request:
-                return f'{API_SUCCESS}{self._running_game.get_status()}'
+                if self._running_game.is_done:
+                    return f'{API_GAME_OVER}{API_SUCCESS}{self._running_game.get_status()}'
+                else:
+                    return f'{API_SUCCESS}{self._running_game.get_status()}'
 
     # Receives all other client's request as a String
     # Process request and generates a response
@@ -349,7 +363,7 @@ class Server:
         else:
             if API_POST in request:
                 if API_NICKNAME in request:
-                    nickname = get_content_from(request)
+                    nickname = get_request_content(request)
                     if len(nickname) <= MAX_INPUT_LENGTH:
                         player.nickname = nickname  # Saves player name
                         self.log(MSG_HANDLING)
@@ -358,7 +372,7 @@ class Server:
                         return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
 
                 elif API_USER_INPUT in request:
-                    guessed_word = get_content_from(request)
+                    guessed_word = get_request_content(request)
                     if len(guessed_word) <= MAX_INPUT_LENGTH:
                         self.log(f'{MSG_PLAYER_GUESSED} {guessed_word}')
                         if guessed_word.lower() == self._running_game.chosen_word.lower() \
@@ -375,7 +389,24 @@ class Server:
                 if API_TIP in request:
                     return f'{API_SUCCESS}{self._running_game.get_word_tip()}'
                 elif API_STATUS in request:
-                    return f'{API_SUCCESS}{self._running_game.get_status()}'
+                    if self._running_game.is_done:
+                        return f'{API_GAME_OVER}{API_SUCCESS}{self._running_game.get_status()}'
+                    else:
+                        return f'{API_SUCCESS}{self._running_game.get_status()}'
+
+    # Timer for each game
+    def run_game_timer(self):
+        self.log(MSG_TIMER_ON)
+        while not self._running_game.is_done:
+            if self._running_game.timer > 0:
+                time.sleep(1)
+                self._running_game.timer -= 1
+            else:
+                self.log(MSG_TIMER_OFF)
+                self._game_over()
+                break
+        else:
+            self.log(MSG_TIMER_INVALIDATED)
 
     # Starts the game
     def _start_game(self):
@@ -445,7 +476,6 @@ class Server:
             self.log(MSG_NO_RUNNING_GAME)
 
 
-# Execussão principal do programa
 if __name__ == '__main__':
     server = Server()
     server.start()
