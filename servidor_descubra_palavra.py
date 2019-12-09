@@ -86,7 +86,7 @@ class Game:
     def __init__(self):
         self.connected_players: [Player] = []  # Active players list
         self.chosen_word = None
-        self.timer = 20  # Total time for each game
+        self.timer = TOTAL_GAME_TIME  # Total time for each game
         self.is_done = False
         self.last_status = None
 
@@ -110,6 +110,9 @@ class Game:
                 pass
             return self.last_status
         else:
+            complement = 'chutou:'
+            if self.timer == TOTAL_GAME_TIME:
+                complement = 'aguardando.'
             status_description = f'\n{CLT_MSG_BAR}'
             status_description += f'\n{CLT_MSG_GAME_TITLE}{self.timer}s'
             if with_tip:
@@ -117,7 +120,7 @@ class Game:
             for player in self.connected_players:
                 if player is not self.get_first_player():
                     status_description += f'\n'
-                    status_description += f'\n{player.nickname} chutou:'
+                    status_description += f'\n{player.nickname} {complement}'
                     for word in player.words_guessed:
                         status_description += f'\n{word}'
             status_description += f'\n{CLT_MSG_BAR}\n'
@@ -204,6 +207,7 @@ class Server:
 
     def start(self):
         self.log(MSG_SERVER_STARTED)
+        self.log(f'Ouvindo pelo ip {socket.gethostbyname(socket.gethostname())}')
         self._input_prompt = MSG_PRESS_TO_STOP
         # Create new thread
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

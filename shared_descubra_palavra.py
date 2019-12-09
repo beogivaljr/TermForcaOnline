@@ -2,11 +2,12 @@
 
 
 # Global constants
-HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
+HOST = ''  # Standard loopback interface address (localhost)
 PORT = 8080  # Port to listen on (non-privileged ports are > 1023)
 _ENCODING = 'utf-8'
 MAX_INPUT_LENGTH = 32
 MAX_PACK_LENGTH = 256
+TOTAL_GAME_TIME = 60
 
 # API tags
 API_GET = 'GET '
