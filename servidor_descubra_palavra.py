@@ -88,6 +88,7 @@ class Game:
         self.chosen_word = None
         self.timer = 20  # Total time for each game
         self.is_done = False
+        self.last_status = None
 
     def __enter__(self):
         return self
@@ -105,7 +106,9 @@ class Game:
     # Returns the status of the current game
     def get_status(self, with_tip=None):
         if self.is_done:
-            return self._get_last_status()
+            while not self.last_status:
+                pass
+            return self.last_status
         else:
             status_description = f'\n{CLT_MSG_BAR}'
             status_description += f'\n{CLT_MSG_GAME_TITLE}{self.timer}s'
@@ -121,14 +124,14 @@ class Game:
             return status_description
 
     # returns the last status description of the game
-    def _get_last_status(self):
+    def generate_last_status(self):
         last_status_description = f'\n{CLT_MSG_BAR}'
         last_status_description += f'\n{CLT_MSG_GAME_OVER}'
         last_status_description += f'\n{CLT_MSG_CHOSEN_WORD} {self.chosen_word}'
         last_status_description += f'\n{self._did_first_player_won()}'
         last_status_description += f'\n{self._congratulate_other_wining_players()}'
         last_status_description += f'\n{CLT_MSG_BAR}\n'
-        return last_status_description
+        self.last_status = last_status_description
 
     def _did_first_player_won(self):
         total_hits = 1  # To disconsider first player
@@ -250,6 +253,9 @@ class Server:
                     new_game.connected_players.append(player)
                     self._running_game = new_game  # Saves new game as the servers running game
                     self._handle_as_first(player)
+
+                    while len(new_game.connected_players) > 1:
+                        pass
 
                 self.log(MSG_DISCONNECTED)
             self.log_total_players()
@@ -418,6 +424,7 @@ class Server:
     # Finishes the game
     def _game_over(self):
         self._running_game.is_done = True
+        self._running_game.generate_last_status()
         self.log(CLT_MSG_GAME_OVER)
 
     # MARK - Helper methods
