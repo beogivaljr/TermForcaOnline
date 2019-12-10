@@ -103,10 +103,9 @@ def play_as_guessing(connected_socket: socket):
 
 if __name__ == '__main__':
     host = socket.gethostbyname(input('Digite o ip a ser conectado: '))
-    port = int(input('Digite a porta: '))
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, port))
+            s.connect((host, PORT))
 
             # After successful connection
             nickname = input('Bem vindo ao \'Descubra a Palavra\', diga nos seu apelido: ')

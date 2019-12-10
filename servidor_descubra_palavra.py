@@ -110,19 +110,26 @@ class Game:
                 pass
             return self.last_status
         else:
-            complement = 'chutou:'
-            if self.timer == TOTAL_GAME_TIME:
-                complement = 'aguardando.'
             status_description = f'\n{CLT_MSG_BAR}'
-            status_description += f'\n{CLT_MSG_GAME_TITLE}{self.timer}s'
+            if self.timer == TOTAL_GAME_TIME:
+                status_description += f'\nAguardando início...'
+            else:
+                status_description += f'\n{CLT_MSG_GAME_TITLE}{self.timer}s'
             if with_tip:
                 status_description += f'\n{CLT_MSG_TIP}\'{with_tip}\''
             for player in self.connected_players:
                 if player is not self.get_first_player():
                     status_description += f'\n'
-                    status_description += f'\n{player.nickname} {complement}'
+                    player_action = 'chutou:'
+                    if self.timer == TOTAL_GAME_TIME:
+                        player_action = 'aguardando.'
+                    elif len(player.words_guessed) == 0:
+                        player_action = 'pensando...'
+                    status_description += f'\n{player.nickname} {player_action}'
                     for word in player.words_guessed:
                         status_description += f'\n{word}'
+                    if player.won:
+                        status_description += f'\nAcertou!'
             status_description += f'\n{CLT_MSG_BAR}\n'
             return status_description
 
@@ -216,9 +223,9 @@ class Server:
             # Waits for the server master to stop execution
             input(f'{self._input_prompt}\n')
         self._input_prompt = None
-        if not self._running_game:
-            time.sleep(0.5)  # Waits for new game to finish starting
-        self._running_game.force_drop_all_players()
+        time.sleep(0.1)  # Waits for new game to finish starting
+        if self._running_game:
+            self._running_game.force_drop_all_players()
 
         self.log(MSG_SERVER_INTERRUPT)
 
@@ -258,13 +265,14 @@ class Server:
                     self._running_game = new_game  # Saves new game as the servers running game
                     self.log(MSG_HANDLING)
                     self._handle_as_first(player)
-
-                    while len(new_game.connected_players) > 1:
-                        pass
+                    if self._running_game.is_done:
+                        while len(new_game.connected_players) > 1:
+                            pass
+                    else:
+                        self._running_game.is_done = True
 
                 self.log(MSG_DISCONNECTED)
             self.log_total_players()
-            self._running_game.is_done = True
             self._accepting_connections = True
         else:
             with Player(connection, address) as player:
@@ -385,7 +393,7 @@ class Server:
                         return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
 
                 elif API_USER_INPUT in request:
-                    guessed_word = get_request_content(request)
+                    guessed_word: str = get_request_content(request)
                     if len(guessed_word) <= MAX_INPUT_LENGTH:
                         self.log(f'{MSG_PLAYER_GUESSED} {guessed_word}')
                         if guessed_word.lower() == self._running_game.chosen_word.lower() \
@@ -393,7 +401,8 @@ class Server:
                             player.won = True
                             return f'{API_WON}{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
                         else:
-                            player.words_guessed.append(guessed_word)
+                            if guessed_word.replace(' ', '').replace('\n', '') != '':
+                                player.words_guessed.append(guessed_word)
                             return f'{API_SUCCESS}{self._running_game.get_status(player.word_tip)}'
                     else:
                         return f'{API_USER_ERROR}{CLT_MSG_TOO_LONG_WORD}'
