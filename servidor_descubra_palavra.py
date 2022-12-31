@@ -173,14 +173,14 @@ class Game:
             word = self.chosen_word
             vector = list(word)
             amount_letters_to_hide = len(vector) - amount_letters_to_keep
-            L = len(vector) - 1
+            length = len(vector) - 1
             done = False
             if amount_letters_to_hide <= 0:
                 return word
             while not done:
-                r = random.randint(0, L)
+                r = random.randint(0, length)
                 vector[r] = '#'
-                if vector.count('#') >= amount_letters_to_hide or vector.count('#') == (L + 1):
+                if vector.count('#') >= amount_letters_to_hide or vector.count('#') == (length + 1):
                     done = True
             secret = ''.join(vector)
             player.word_tip = secret
@@ -206,7 +206,7 @@ class Server:
         self.thread_id = threading.get_ident()  # Saves the id of the thread of the caller of the start
 
         self._input_prompt = None  # Any input promt being requested from the server master
-        self._server_receiver_thread_id = None  # Id for the receiver thread
+        self._server_receiver_thread_id = None  # ID for the receiver thread
         self._running_game = None
         self._accepting_connections = True
 
@@ -286,7 +286,7 @@ class Server:
             self.log(MSG_DISCONNECTED)
             self.log_total_players()
 
-    # Handles this player as the first, which means he is going to chose the game word
+    # Handles this player as the first, which means he is going to choose the game word
     def _handle_as_first(self, player: Player):
         try:
             while True:
@@ -488,7 +488,7 @@ class Server:
                     else:
                         return f'{thread_name} ({player.get_ip()}):'
 
-        # If could not identify thread user it's name
+        # If it could not identify thread use its name
         return f'{thread_name}:'
 
     # Prints total connected players

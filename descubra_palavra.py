@@ -2,7 +2,6 @@
 
 from shared_descubra_palavra import *
 import socket
-import threading
 import time
 
 
@@ -15,7 +14,7 @@ def get_user_error_content(server_response):
     return server_response.split(API_USER_ERROR)[1]
 
 
-# Playe as the first player
+# Player as the first player
 def play_as_first(connected_socket: socket):
     chosen_word = input('Escolha uma palavra para ser adivinhada: ')
     while True:
@@ -33,14 +32,7 @@ def play_as_first(connected_socket: socket):
                     server_response = decode(connected_socket.recv(MAX_PACK_LENGTH))
                     if API_SUCCESS in server_response:
                         print(get_success_content(server_response))
-                        while API_GAME_OVER not in server_response:
-                            time.sleep(1)
-                            connected_socket.sendall(encode(f'{API_GET}{API_STATUS}{API_END}'))
-                            server_response = decode(connected_socket.recv(MAX_PACK_LENGTH))
-                            if API_SUCCESS in server_response:
-                                print(get_success_content(server_response))
-                            else:
-                                print(server_response)
+                        check_game_state(connected_socket, server_response)
                     else:
                         print(server_response)
                     break
@@ -91,6 +83,10 @@ def play_as_guessing(connected_socket: socket):
             print('Erro desconhecido:\n\n' + server_response)
             break
 
+    check_game_state(connected_socket, server_response)
+
+
+def check_game_state(connected_socket, server_response):
     while API_GAME_OVER not in server_response:
         time.sleep(1)
         connected_socket.sendall(encode(f'{API_GET}{API_STATUS}{API_END}'))

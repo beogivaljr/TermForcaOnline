@@ -45,7 +45,7 @@ def get_success_content(response):
     return response.split(API_SUCCESS)[1]
 
 
-# Check if the a request is valid
+# Check if the request is valid
 def is_valid(request: str):
     if (API_POST in request or API_GET in request) and API_END in request:
         return True
